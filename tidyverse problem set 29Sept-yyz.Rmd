@@ -1,0 +1,238 @@
+---
+title: "Tidyverse Problem Set"
+author: "Yunyi Zhang"
+date: "September 29, 2019"
+output: pdf_document
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+  options(tinytex.verbose = TRUE)
+  opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(gapminder)
+library(ggplot2)
+```
+
+The purpose of this problem set is to provide data contexts in which to exercise the capabilitiues of the tidyverse. While some questons require specific answers, other parts of the problems have been written to be purposely ambiguous, requiring you to think through the presentation details of your answer. 
+
+
+
+
+HOLD THE PRESSES!  
+As I was preparing to post these problems yesterday, I noticed that tidyr had been updata in the last few weeks. I was looking for more exercises on gather() and spread() -- which are always difficult to master.  And I found that they have been superceded!!  Why do I love working with R as the tidyversie is on a path of continuous improvement? Because the improvements come from developers who write things like this:
+
+
+_For some time, it’s been obvious that there is something fundamentally wrong with the design of spread() and gather(). Many people don’t find the names intuitive and find it hard to remember which direction corresponds to spreading and which to gathering. It also seems surprisingly hard to remember the arguments to these functions, meaning that many people (including me!) have to consult the documentation every time._  [Hadley Wickham, Pivot Vingette](https://cran.r-project.org/web/packages/tidyr/vignettes/pivot.html)
+
+
+So... before you do anymore tidyverse exercises,
+Read this [tidyr 1.0.0](https://www.tidyverse.org/articles/2019/09/tidyr-1-0-0/).
+
+Then go to the [tidyr cran page](https://cran.r-project.org/web/packages/tidyr/index.html) 
+and to the examples and exercies in the new vignettes.
+
+In your solutions to the problems below, if you need to use table reshaping functions from TidyR, be sure that you use pivot_longer(), and pivot_wider().
+
+
+
+### Problem 1
+
+Load the gapminder data from the gapminder package.
+```{r, echo = FALSE}
+library(gapminder)
+data(gapminder)
+```
+
+How many continents are included in the data set?
+```{r, echo = FALSE}
+length(unique(gapminder$continent))
+```
+
+How many countrys are included?  How many countries per continent?
+```{r, echo = FALSE}
+length(unique(gapminder$country))
+gapminder %>% group_by(continent) %>% summarize(n_distinct(country))
+```
+
+Using the gapminder data, produce a report showing the continents in the dataset, total population per continent, and GDP per capita.  Be sure that the table is properly labeled and suitable for inclusion in a printed report.
+
+Since simply add up all GDP per capita is meaningless, I first add an addition column "total GDP" to the table which mutiply gdpPercap and pop , then make the aggregate, and finally devided by total population.
+```{r, echo = FALSE}
+gapminderY2007 = filter(gapminder, year==2007)
+abc = aggregate(gapminderY2007[,c('pop')], list(gapminderY2007$continent), FUN = sum)
+gapminderY2007New = mutate(gapminderY2007, TotalGDP = pop*gdpPercap)
+bcd = aggregate(gapminderY2007New[,c('TotalGDP')], list(gapminderY2007$continent), FUN = sum)
+Newtable = left_join(abc, bcd, by='Group.1')
+Newtable = mutate(Newtable, gdpPercap = TotalGDP/pop)
+kable(Newtable, booktabs=TRUE, digits = 2, col.names = c("Continent", "Total Population", "total GDP", "GDP per Capita"), align = "c")
+```
+
+Produce a well-labeled table that summarizes GDP per capita for the countries in each continent,  contrasting the years 1952 and 2007.
+
+I selected some countries for the table since the original one is way too long, see gdpPercapTable fot the full information.
+```{r, echo = FALSE}
+gapminderY1952 = filter(gapminder, year==1952)
+gapminderY2007g = select(gapminderY2007, country, gdpPercap)
+gapminderY1952g = select(gapminderY1952, country, continent, gdpPercap)
+gdpPercapTable = left_join(gapminderY1952g, gapminderY2007g, by = 'country')
+gdpPercapTable = arrange(gdpPercapTable, continent)
+gdpPercapTablePart = slice(gdpPercapTable, 1:3, 53:55, 79:81, 111:113, 141:142)
+kable(gdpPercapTablePart, digits = 1, booktabs=TRUE, col.names = c("Country","Continent","1952 GDP","2007 GDP"))
+```
+
+Product a plot that summarizes the same data as the table. There should be two plots per continent.
+long, see gdpPercapTable fot the full information.
+```{r, echo = FALSE}
+
+```
+
+Which countries in the dataset have had periods of negative population growth?
+```{r, echo = FALSE}
+gapminderGrowth <- gapminder %>% group_by(country) %>% mutate(popGrowth = pop - lag(pop, default=0))
+popDecrease = filter(gapminderGrowth, popGrowth <0)
+popDecrease %>% group_by(country) %>% summarize(n_distinct(year))
+```
+
+Illustrate your answer with a table or plot.
+```{r, echo = FALSE}
+kable(popDecrease[,c("country","year","popGrowth")], booktabs=TRUE, digits = 2, col.names = c("Country", "Year", "Decrease"), align = "c")
+```
+
+Which countries in the dataset have had the highest rate of growth in per capita GDP?
+```{r, echo = FALSE}
+gdpGrowthRate = mutate(gdpPercapTable, GrowthRate = (gdpPercap.y-gdpPercap.x)/gdpPercap.x*100)
+gdpGrowthRate = arrange(gdpGrowthRate, desc(GrowthRate))
+countries = gdpGrowthRate[,1]
+countries = countries[1:10,]
+kable(countries)
+```
+
+Illustrate your answer with a table or plot.
+```{r, echo = FALSE}
+gdpGrowthRate = gdpGrowthRate[1:10,]
+kable(gdpGrowthRate[,c("country","GrowthRate")], booktabs=TRUE, digits = 2, col.names = c("Country", "GrowthRate in %"), align = "c")
+```
+
+
+### Problem 2
+
+The data for Problem 2 is the Fertility data in the AER package.  This data is from the 1980 US Census and is comprised of date on married women aged 21-35 with two or more children.  The data report the gender of each woman's first and second child, the woman's race, age, number of weeks worked in 1979, and whether the woman had more than two children.
+
+
+There are four possible gender combinations for the first two Children.  Product a plot the contracts the frequency of these four combinations. Are the frequencies different for women in their 20s and wemen who are older than 29?
+
+Produce a plot that contrasts the frequency of having more than two children by race and ethnicity.  
+
+
+### Problem 3
+
+Use the mtcars and mpg datasets.  
+```{r, echo = FALSE}
+data(mtcars)
+data(mpg)
+```
+How many times does the letter "e" occur in mtcars rownames?
+```{r, echo=FALSE}
+sum(str_count(rownames(mtcars), "e"))
+
+```
+
+
+How many cars in mtcars have the brand Merc?
+```{r, echo=FALSE}
+sum(str_count(rownames(mtcars), "Merc"))
+```
+
+
+How many cars in mpg have the brand("manufacturer" in mpg) Merc?
+```{r, echo=FALSE}
+sum(str_count(mpg$manufacturer, "merc"))
+```
+
+
+Contrast the mileage data for Merc cars as reported in mtcars and mpg.  Use tables, plots, and a short explaination.
+```{r, echo=FALSE}
+
+CarsMPG = mtcars[8:14,1]
+Model = rownames(mtcars[8:14, ])
+Newmtcars = data.frame(Model, CarsMPG)
+NewMPG = mpg[138:141, c(1:2,4,8:9)]
+NewMPG = mutate(NewMPG, Avg = (cty+hwy)/2)
+kable(Newmtcars, booktabs=T, col.names = c("Model","MPG"))
+kable(NewMPG, booktabs=T, col.names = c("Manufacture", "Model", "year","city MPG", "hyw MPG", "avg MPG"))
+```
+
+One question about this problem is that: Merc in mpg dataset represent "Mercury", while merc in mtcars dataset represent "Mercedes", so how do we contrast cars from two different manufacturer?
+
+From the table we can see that the average MPG of Mercury mountaineer 4wd 1999 has the lowest mpg amoung all cars, while Mercedes 240D has the highest by 24.4
+
+### Problem 4
+
+Install the babynames package.
+```{r, echo=FALSE}
+library(babynames)
+data(babynames)
+```
+
+
+Draw a sample of 500,000 rows from the babynames data
+```{r, echo=FALSE}
+babynames1 = babynames[1:500000,]
+babynames2 = babynames[500001:1000000,]
+babynames3 = babynames[1000001:1500000,]
+```
+
+
+Produce a tabble that displays the five most popular boy names and girl names
+in the years 1880,1920, 1960, 2000.
+```{r, echo=FALSE}
+names1880 = filter(babynames1, year == "1880")
+names1880 = arrange(names1880, desc(n))
+names1880 = names1880[1:5,]
+names1920 = filter(babynames1, year == "1920")
+names1920 = arrange(names1920, desc(n))
+names1920 = names1920[1:5,]
+names1960 = filter(babynames2, year == "1960")
+names1960 = arrange(names1960, desc(n))
+names1960 = names1960[1:5,]
+names2000 = filter(babynames3, year == "2000")
+names2000 = arrange(names2000, desc(n))
+names2000 = names2000[1:5,]
+popularNames = cbind(names1880[,c("year","name")],names1920[,c("year","name")],names1960[,c("year","name")],names2000[,c("year","name")])
+kable(popularNames)
+```
+
+
+What names overlap boys and girls?
+```{r, echo=TRUE}
+MaleName = filter(babynames1, sex=='M')
+MaleName = unique(MaleName$name)
+FemaleName = filter(babynames1, sex == 'F')
+FemaleName = unique(FemaleName$name)
+overlap = intersect(MaleName, FemaleName)
+```
+I have found 3072 overlap names in the search, for example: John, William, James, Charles.....
+
+What names were used in the 19th century but have not been used in the 21sth century?
+```{r, echo=TRUE}
+baby19th = filter(babynames1, year<1900)
+baby19th = unique(baby19th$name)
+baby21th = filter(babynames3, year>=2000)
+baby21th = unique(baby21th$name)
+newNames = setdiff(baby19th, intersect(baby19th, baby21th))
+```
+Some examples are Myrtle, Nannie, Bertie....
+
+
+Produce a chart that shows the relative frequency of the names "Donald", "Hilary", "Hillary", "Joe", "Barrack",  over the years 1880 through 2017.
+```{r, echo=FALSE}
+nameFeq = filter(babynames1, year>1880&&year<2017)
+```
+
+
+
+
+
+
